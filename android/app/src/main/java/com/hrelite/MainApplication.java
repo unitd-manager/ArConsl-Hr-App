@@ -1,4 +1,4 @@
-package com.HRElite;
+package com.ArConsl;
 
 import android.app.Application;
 import com.facebook.react.PackageList;

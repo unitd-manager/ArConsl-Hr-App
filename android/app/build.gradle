@@ -93,9 +93,9 @@ android {
 
     compileSdkVersion rootProject.ext.compileSdkVersion
 
-    namespace "com.HRElite"
+    namespace "com.ArConsl"
     defaultConfig {
-        applicationId "com.HRElite"
+        applicationId "com.ArConsl"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 2
