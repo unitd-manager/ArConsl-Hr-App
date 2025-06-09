@@ -2,7 +2,7 @@ import { StyleSheet, View, Text, Alert } from 'react-native';
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { FlashList } from '@shopify/flash-list';
-import moment from 'moment';
+import moment from 'moment-timezone'; // use moment-timezone
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { styles, colors } from '../../../themes';
 import { popularEventData } from '../../../api/constant';
@@ -26,7 +26,6 @@ export default function HomeTab() {
     setUserData(userData);
     setExtraData(prev => !prev); // Trigger re-render
   };
-  
 
   useEffect(() => {
     setExtraData(!extraData);
@@ -49,48 +48,55 @@ export default function HomeTab() {
 
   const FetchData = async () => {
     if (!user) return;
-  
+
     const userss = {
       staff_id: user.staff_id,
       site_id: user.site_id,
-      branch_id: user.branch_id
+      branch_id: user.branch_id,
     };
-  
+
     try {
       const res = await api.post(`/attendance/getEmployeeSiteData`, userss);
       const allData = res.data.data;
-      
-      const todayDate = moment().format('DD-MM-YYYY');
-  
-      // Filter records for today's date
+
+      // Use Singapore date for "today"
+      const todayDate = moment().tz('Asia/Singapore').format('DD-MM-YYYY');
+
+      // Filter records for today's date (Singapore date)
       const todayRecord = allData.find(record => record.date === todayDate);
-  
+
       if (todayRecord) {
         setData(todayRecord);
-  
+
         // Store check-in status locally
-        await AsyncStorage.setItem('DAY_CHECKED_IN', todayRecord.day_check_in_time && !todayRecord.day_check_out_time ? 'true' : 'false');
-        await AsyncStorage.setItem('NIGHT_CHECKED_IN', todayRecord.night_check_In_time && !todayRecord.night_check_out_time ? 'true' : 'false');
+        await AsyncStorage.setItem(
+          'DAY_CHECKED_IN',
+          todayRecord.day_check_in_time && !todayRecord.day_check_out_time ? 'true' : 'false'
+        );
+        await AsyncStorage.setItem(
+          'NIGHT_CHECKED_IN',
+          todayRecord.night_check_In_time && !todayRecord.night_check_out_time ? 'true' : 'false'
+        );
       } else {
         setData(null); // No record for today
       }
     } catch (error) {
-      alert('Network connection error.');
+      Alert.alert('Network connection error.');
     }
   };
-  
-  
 
   const insertAttendance = () => {
     const staff_id = user.staff_id;
     const employee_id = user.employee_id;
     const site_id = user.site_id;
     const branch_id = user.branch_id;
-    const currentDate = moment().format('DD-MM-YYYY');
-    const currentTime = moment().format('h:mm:ss a');
+
+    // Singapore date & time
+    const currentDate = moment().tz('Asia/Singapore').format('DD-MM-YYYY');
+    const currentTime = moment().tz('Asia/Singapore').format('h:mm:ss a');
 
     if (lastClickedButton === 'day') {
-      const user = {
+      const payload = {
         project_id: 1,
         date: currentDate,
         staff_id: staff_id,
@@ -101,10 +107,10 @@ export default function HomeTab() {
       };
 
       api
-        .post('/attendance/insertAppAttendance', user)
+        .post('/attendance/insertAppAttendance', payload)
         .then(({ data }) => {
           setCurrentInsertId(data.data.insertId);
-          setInsertedData(user);
+          setInsertedData(payload);
           Alert.alert('Day Attendance inserted successfully.');
           FetchData();
         })
@@ -113,7 +119,7 @@ export default function HomeTab() {
           Alert.alert('Network connection error.');
         });
     } else if (lastClickedButton === 'night') {
-      const user = {
+      const payload = {
         project_id: 1,
         date: currentDate,
         staff_id: staff_id,
@@ -124,10 +130,10 @@ export default function HomeTab() {
       };
 
       api
-        .post('/attendance/insertAppAttendance', user)
+        .post('/attendance/insertAppAttendance', payload)
         .then(({ data }) => {
           setCurrentInsertId(data.data.insertId);
-          setInsertedData(user);
+          setInsertedData(payload);
           Alert.alert('Night Attendance inserted successfully.');
           FetchData();
         })
@@ -138,37 +144,38 @@ export default function HomeTab() {
   };
 
   const checkOut = () => {
-    const currentTime = moment().format('h:mm:ss a');
-    const currentDate = moment().format('DD-MM-YYYY');
+    // Singapore time for checkout as well
+    const currentTime = moment().tz('Asia/Singapore').format('h:mm:ss a');
+    const currentDate = moment().tz('Asia/Singapore').format('DD-MM-YYYY');
 
     if (lastClickedButton === 'day') {
-      const user = {
+      const payload = {
         day_check_out_time: currentTime,
         date: currentDate,
         id: currentInsertId,
       };
       api
-        .post('/attendance/updateAppAttendance', user)
+        .post('/attendance/updateAppAttendance', payload)
         .then(() => {
           Alert.alert('Day check-out time inserted successfully.');
-          setInsertedData(user);
+          setInsertedData(payload);
           FetchData();
         })
         .catch(() => {
           Alert.alert('Network connection error.');
         });
     } else if (lastClickedButton === 'night') {
-      const user = {
+      const payload = {
         night_check_out_time: currentTime,
         date: currentDate,
         id: currentInsertId,
       };
 
       api
-        .post('/attendance/updateAppAttendance', user)
+        .post('/attendance/updateAppAttendance', payload)
         .then(() => {
           Alert.alert('Night check-out time inserted successfully.');
-          setInsertedData(user);
+          setInsertedData(payload);
           FetchData();
         })
         .catch(() => {
@@ -197,7 +204,7 @@ export default function HomeTab() {
   const onPressYes = async () => {
     if (lastClickedButton === 'day') {
       if (btnTextDay === strings.daycheckIn) {
-        setBtnTextDay(strings.daycheckout); 
+        setBtnTextDay(strings.daycheckout);
         insertAttendance();
         setIsNightButtonVisible(false);
         await AsyncStorage.setItem('DAY_CHECKED_IN', 'true');
@@ -222,53 +229,45 @@ export default function HomeTab() {
     }
     setModalVisible(false);
   };
-  
-  
+
   const onPressNo = () => {
     setModalVisible(false);
   };
 
-
   const loadButtonState = async () => {
     const dayCheckedIn = await AsyncStorage.getItem('DAY_CHECKED_IN');
     const nightCheckedIn = await AsyncStorage.getItem('NIGHT_CHECKED_IN');
-  
-    // Check day shift status
+
+    // Determine button text based on fetched data for today (which was retrieved using SG date)
     if (data?.day_check_in_time && !data?.day_check_out_time) {
-      setBtnTextDay(strings.daycheckout); // Show "Check-Out" if checked in but not out
+      setBtnTextDay(strings.daycheckout);
     } else {
-      setBtnTextDay(strings.daycheckIn); // Show "Check-In" otherwise
+      setBtnTextDay(strings.daycheckIn);
     }
-  
-    // Check night shift status
+
     if (data?.night_check_In_time && !data?.night_check_out_time) {
-      setBtnTextNight(strings.nightcheckout); // Show "Check-Out" if checked in but not out
+      setBtnTextNight(strings.nightcheckout);
     } else {
-      setBtnTextNight(strings.nightcheckIn); // Show "Check-In" otherwise
+      setBtnTextNight(strings.nightcheckIn);
     }
-  
+
     setIsDayButtonVisible(true);
     setIsNightButtonVisible(true);
   };
-  
 
   useEffect(() => {
-   
-    calculateTotalTime();
+    calculateTotalTime(); // no change needed here
   }, []);
+
   useEffect(() => {
     FetchData().then(() => loadButtonState()); // Ensure button states update after fetching data
   }, [user]);
-  
-  
-
 
   const calculateTotalTime = (startTime, endTime) => {
     const startMoment = moment(startTime, 'h:mm:ss a');
     const endMoment = moment(endTime, 'h:mm:ss a');
 
     const duration = moment.duration(endMoment.diff(startMoment));
-
     const totalHours = Math.floor(duration.asHours());
     const totalMinutes = Math.floor(duration.asMinutes()) % 60;
     const totalSeconds = Math.floor(duration.asSeconds()) % 60;
@@ -279,113 +278,119 @@ export default function HomeTab() {
     return totalTime;
   };
 
-
   const renderCategoryItem = ({ item, index }) => {
     return <SmallCardComponent item={item} key={index} />;
   };
 
-
   const [refreshing, setRefreshing] = useState(false);
 
-const onRefresh = async () => {
-  setRefreshing(true);
-  await FetchData(); // Fetch the latest data
-  await loadButtonState(); // Ensure button states update after fetching data
-  setRefreshing(false);
-};
-
-
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await FetchData(); // Fetch the latest data
+    await loadButtonState(); // Ensure button states update after fetching data
+    setRefreshing(false);
+  };
 
   return (
     <>
       <HomeHeader user={user} style={{ flex: 1 }} />
-         <View>
-
-      <View style={localStyles.card}>
-        <View style={localStyles.left}>
-          <EText type="m16" numberOfLines={1} color={colors.textColor}> Create Attendance </EText>
-          <Text style={{color:'#4D4C4C'}}>Click on Day Clock In or Night Clock In button to generate attendance</Text>
+      <View>
+        <View style={localStyles.card}>
+          <View style={localStyles.left}>
+            <EText type="m16" numberOfLines={1} color={colors.textColor}>
+              Create Attendance
+            </EText>
+            <Text style={{ color: '#4D4C4C' }}>
+              Click on Day Clock In or Night Clock In button to generate attendance
+            </Text>
+          </View>
+          <Caledar />
         </View>
-        <Caledar />
       </View>
-    </View>
+
       <View style={localStyles.bottomClock}>
-          <View style={localStyles.btnContainer}>
-            <View style={{ flexDirection: 'row', color: colors.white, alignItems: 'center' }}>
-              <Clock />
-              <View style={{ marginLeft: 10 }}>
-                <EText type="m14" numberOfLines={1} color={colors.white}>{moment().format('dddd')}</EText>
-                <EText type="m16" numberOfLines={1} color={colors.white}>{moment().format('DD-MMM-YYYY')}</EText>
-              </View>
+        <View style={localStyles.btnContainer}>
+          <View style={{ flexDirection: 'row', color: colors.white, alignItems: 'center' }}>
+            <Clock />
+            <View style={{ marginLeft: 10 }}>
+              {/* Show Singapore weekday and date */}
+              <EText type="m14" numberOfLines={1} color={colors.white}>
+                {moment().tz('Asia/Singapore').format('dddd')}
+              </EText>
+              <EText type="m16" numberOfLines={1} color={colors.white}>
+                {moment().tz('Asia/Singapore').format('DD-MMM-YYYY')}
+              </EText>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-  <Clock />
-  <View style={{ marginLeft: 10 }}>
-    <EText type="m14" numberOfLines={1} color={colors.white}>Shift</EText>
-    {data ? (
-      <EText type="m16" numberOfLines={1} color={colors.white}>
-        {data.day_check_in_time
-          ? moment(data.day_check_in_time, 'h:mm:ss a').format('h:mm a')
-          : moment(data.night_check_In_time, 'h:mm:ss a').format('h:mm a')
-        } - {data.day_check_out_time
-          ? moment(data.day_check_out_time, 'h:mm:ss a').format('h:mm a')
-          : moment(data.night_check_out_time, 'h:mm:ss a').format('h:mm a')
-        }
-      </EText>
-    ) : (
-      <EText type="m16" numberOfLines={1} color={colors.white}>
-        No attendance record
-      </EText>
-    )}
-  </View>
-</View>
-
-
           </View>
-          {(data?.day_check_out_time || data?.night_check_out_time) && (
-  <View style={localStyles.centeredTextContainer}>
-    <EText type="m20" numberOfLines={1} color={colors.white}>
-      <Clock /> 
-      {data?.day_check_in_time 
-        ? calculateTotalTime(data?.day_check_in_time, data?.day_check_out_time) 
-        : calculateTotalTime(data?.night_check_In_time, data?.night_check_out_time)}
-    </EText>
-  </View>
-)}
-
-
-          <View style={localStyles.btnContainer}>
-            {isDayButtonVisible && (
-              <EButton
-                title={btnTextDay}
-                type={'S16'}
-                containerStyle={localStyles.skipBtnContainer}
-                color={colors.white}
-                onPress={() => onPress('day')}
-                isDayButtonVisible={isDayButtonVisible}
-              />
-            )}
-            {isNightButtonVisible && (
-              <EButton
-                title={btnTextNight}
-                type={'S16'}
-                color={colors.white}
-                containerStyle={localStyles.skipBtnContainer}
-                onPress={() => onPress('night')}
-                isNightButtonVisible={isNightButtonVisible}
-              />
-            )}
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Clock />
+            <View style={{ marginLeft: 10 }}>
+              <EText type="m14" numberOfLines={1} color={colors.white}>
+                Shift
+              </EText>
+              {data ? (
+                <EText type="m16" numberOfLines={1} color={colors.white}>
+                  {data.day_check_in_time
+                    ? moment(data.day_check_in_time, 'h:mm:ss a').format('h:mm a')
+                    : moment(data.night_check_In_time, 'h:mm:ss a').format('h:mm a')}{' '}
+                  -{' '}
+                  {data.day_check_out_time
+                    ? moment(data.day_check_out_time, 'h:mm:ss a').format('h:mm a')
+                    : moment(data.night_check_out_time, 'h:mm:ss a').format('h:mm a')}
+                </EText>
+              ) : (
+                <EText type="m16" numberOfLines={1} color={colors.white}>
+                  No attendance record
+                </EText>
+              )}
+            </View>
           </View>
         </View>
 
-        <ProjectConfirmModal
-          visible={modalVisible}
-          headerTitle={headerTitle}
-          btnText1={"Yes"}
-          btnText2={"No"}
-          onPressBtn1={onPressYes}
-          onPressBtn2={onPressNo}
-        />
+        {(data?.day_check_out_time || data?.night_check_out_time) && (
+          <View style={localStyles.centeredTextContainer}>
+            <EText type="m20" numberOfLines={1} color={colors.white}>
+              <Clock />{' '}
+              {data?.day_check_in_time
+                ? calculateTotalTime(data?.day_check_in_time, data?.day_check_out_time)
+                : calculateTotalTime(data?.night_check_In_time, data?.night_check_out_time)}
+            </EText>
+          </View>
+        )}
+
+        <View style={localStyles.btnContainer}>
+          {isDayButtonVisible && (
+            <EButton
+              title={btnTextDay}
+              type={'S16'}
+              containerStyle={localStyles.skipBtnContainer}
+              color={colors.white}
+              onPress={() => onPress('day')}
+              isDayButtonVisible={isDayButtonVisible}
+            />
+          )}
+          {isNightButtonVisible && (
+            <EButton
+              title={btnTextNight}
+              type={'S16'}
+              color={colors.white}
+              containerStyle={localStyles.skipBtnContainer}
+              onPress={() => onPress('night')}
+              isNightButtonVisible={isNightButtonVisible}
+            />
+          )}
+        </View>
+      </View>
+
+      <ProjectConfirmModal
+        visible={modalVisible}
+        headerTitle={headerTitle}
+        btnText1={'Yes'}
+        btnText2={'No'}
+        onPressBtn1={onPressYes}
+        onPressBtn2={onPressNo}
+      />
+
       <View style={[styles.flexGrow1, { backgroundColor: '#f5f5f5' }]}>
         <FlashList
           data={popularEventData}
@@ -394,33 +399,15 @@ const onRefresh = async () => {
           keyExtractor={(item, index) => index.toString()}
           estimatedItemSize={10}
           numColumns={2}
-          // ListHeaderComponent={<RenderHeaderItem />}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={localStyles.contentContainerStyle}
-          refreshing={refreshing} // Enable pull-to-refresh
-          onRefresh={onRefresh} // Trigger refresh when pulled down
+          refreshing={refreshing}
+          onRefresh={onRefresh}
         />
-
-      
       </View>
     </>
   );
 }
-
-const RenderHeaderItem = React.memo(() => {
-  return (
-    <View>
-
-      <View style={localStyles.card}>
-        <View style={localStyles.left}>
-          <EText type="m16" numberOfLines={1} color={colors.textColor}> Create Attendance </EText>
-          <Text style={{color:'#4D4C4C'}}>Click on Day Clock In or Night Clock In button to generate attendance</Text>
-        </View>
-        <Caledar />
-      </View>
-    </View>
-  );
-});
 
 const localStyles = StyleSheet.create({
   contentContainerStyle: {

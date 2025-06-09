@@ -115,10 +115,9 @@ const RequestLeave = ({route}) => {
   const [showHoursDropdown, setShowLeavehourTypeDropdown] = useState(false);
 
   const leavehourTypes = ['1','2','3','4','5'];
-
   const onPressSubmit = () => {
     const formData = {
-      no_of_days: leaveType === 'Permission' ? '0' : totalDays, // Set total days as 0 if leave type is 'Permission'
+      no_of_days: leaveType === 'Permission' ? '0' : totalDays,
       leave_type: leaveType,
       from_date: startDate,
       hours: leaveHours,
@@ -136,15 +135,44 @@ const RequestLeave = ({route}) => {
       Alert.alert('Please fill in all required fields.');
       return;
     }
-  
+
+    // First check if there's an existing leave request for these dates
     api
-      .post('/leave/insertLeave', formData)
-      .then(() => {
-        Alert.alert('Leave Request sent successfully.');
-        navigation.navigate(StackNav.ViewLeaves);
+      .post('/leave/getLeaveEmpByid', { employee_id: route.params.staff_id })
+      .then((res) => {
+        const existingLeaves = res.data.data || [];
+        const hasOverlappingLeave = existingLeaves.some(leave => {
+          const existingStartDate = moment(leave.from_date, 'DD-MM-YYYY');
+          const existingEndDate = moment(leave.to_date, 'DD-MM-YYYY');
+          const newStartDate = moment(startDate, 'DD-MM-YYYY');
+          const newEndDate = moment(endDate, 'DD-MM-YYYY');
+          
+          return (newStartDate.isBetween(existingStartDate, existingEndDate, null, '[]') || 
+                 newEndDate.isBetween(existingStartDate, existingEndDate, null, '[]') ||
+                 existingStartDate.isBetween(newStartDate, newEndDate, null, '[]') ||
+                 existingEndDate.isBetween(newStartDate, newEndDate, null, '[]'));
+        });
+
+        if (hasOverlappingLeave) {
+          Alert.alert('Leave Request Overlap', 'You already have a leave request for these dates.');
+          return;
+        }
+
+        // If no overlapping leaves, proceed with submitting the new request
+        api
+          .post('/leave/insertLeave', formData)
+          .then(() => {
+            Alert.alert('Leave Request sent successfully.');
+            navigation.navigate(StackNav.ViewLeaves);
+          })
+          .catch(error => {
+            console.log('Error:', error);
+            Alert.alert('Error', 'Failed to submit leave request. Please try again.');
+          });
       })
       .catch(error => {
-        console.log('Error: ', error);
+        console.log('Error checking existing leaves:', error);
+        Alert.alert('Error', 'Failed to validate leave request. Please try again.');
       });
   };
   const handleLeaveHoursSelection = (hours) => {

@@ -103,6 +103,13 @@ android {
         vectorDrawables.useSupportLibrary = true
     }
 
+    sourceSets {
+        main {
+            assets.srcDirs += ['src/main/assets/', '../../node_modules/react-native-vector-icons/Fonts']
+            res.srcDirs += ['src/main/res']
+        }
+    }
+
     splits {
         abi {
             reset()
